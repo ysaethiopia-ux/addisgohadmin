@@ -328,6 +328,35 @@ th {
   border: 1px solid #e4e9f3;
 }
 
+.image-preview__error {
+  border: 1px solid #ecd7dd;
+  background: #fff6f8;
+  border-radius: 10px;
+  padding: 0.9rem;
+}
+
+.image-preview__error-text {
+  margin: 0;
+  color: #7a2f3d;
+  font-weight: 600;
+}
+
+.image-preview__source {
+  display: inline-block;
+  margin-top: 0.55rem;
+  color: #234271;
+  font-weight: 700;
+  text-decoration: none;
+  border: 1px solid #cddbf4;
+  background: #eef4ff;
+  border-radius: 8px;
+  padding: 0.33rem 0.56rem;
+}
+
+.image-preview__source:hover {
+  border-color: #aac2eb;
+}
+
 @keyframes slide-in {
   from {
     opacity: 0;

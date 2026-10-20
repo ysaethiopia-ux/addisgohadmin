@@ -74,14 +74,34 @@ function isImageUrl(value) {
   }
 }
 
-function renderCell(column, rawValue) {
+function isLikelyInvalidDataImage(value) {
+  const raw = String(value || "").trim();
+  if (!raw.startsWith("data:image/")) return false;
+
+  const parts = raw.split(",");
+  if (parts.length < 2) return true;
+  const payload = parts[1] || "";
+
+  // Extremely short base64 payloads are usually test strings and not real images.
+  return payload.length < 120;
+}
+
+function renderCell(column, rawValue, row) {
   const value = normalizeValue(rawValue);
   const safeValue = escapeHtml(value);
 
   if (isLikelyScreenshotColumn(column) && isImageUrl(value)) {
-    const safeUrl = escapeHtml(value);
+    const sourceUrl = value;
+    const previewUrl =
+      activeKey === "upgradeTransaction" && row?.id
+        ? `/api/upgrade-transactions/${encodeURIComponent(row.id)}/screenshot`
+        : sourceUrl;
+
+    const safePreviewUrl = escapeHtml(previewUrl);
+    const safeSourceUrl = escapeHtml(sourceUrl);
+    const shortHint = isLikelyInvalidDataImage(value) ? " data-hint='invalid-data'" : "";
     return `
-      <button type="button" class="image-preview-btn" data-image-url="${safeUrl}" title="Open screenshot preview">
+      <button type="button" class="image-preview-btn" data-image-url="${safePreviewUrl}" data-source-url="${safeSourceUrl}"${shortHint} title="Open screenshot preview">
         View screenshot
       </button>
     `;
@@ -98,22 +118,60 @@ function createImagePreview() {
     <figure class="image-preview__dialog" role="dialog" aria-modal="true" aria-label="Screenshot preview">
       <button type="button" class="image-preview__close" data-close-preview="true" aria-label="Close preview">Close</button>
       <img class="image-preview__img" alt="Screenshot preview" />
+      <div class="image-preview__error" hidden>
+        <p class="image-preview__error-text">Unable to load screenshot. This URL may be private or invalid.</p>
+        <a class="image-preview__source" href="#" target="_blank" rel="noopener noreferrer">Open source URL</a>
+      </div>
     </figure>
   `;
 
   document.body.appendChild(overlay);
 
   const imageEl = overlay.querySelector(".image-preview__img");
+  const errorEl = overlay.querySelector(".image-preview__error");
+  const sourceEl = overlay.querySelector(".image-preview__source");
+
+  let currentUrl = "";
 
   function close() {
     overlay.classList.remove("is-open");
     imageEl.removeAttribute("src");
+    errorEl.hidden = true;
+    imageEl.hidden = false;
+    currentUrl = "";
   }
 
-  function open(url) {
-    imageEl.src = url;
+  function showError() {
+    imageEl.hidden = true;
+    errorEl.hidden = false;
+    sourceEl.href = currentUrl || "#";
+  }
+
+  function open(url, hint, sourceUrl) {
+    currentUrl = (url || "").trim();
+    errorEl.hidden = true;
+    imageEl.hidden = false;
+    sourceEl.href = (sourceUrl || currentUrl || "#").trim();
+
+    if (!currentUrl || hint === "invalid-data" || isLikelyInvalidDataImage(currentUrl)) {
+      imageEl.removeAttribute("src");
+      showError();
+      overlay.classList.add("is-open");
+      return;
+    }
+
+    imageEl.src = currentUrl;
     overlay.classList.add("is-open");
   }
+
+  imageEl.addEventListener("error", () => {
+    showError();
+  });
+
+  imageEl.addEventListener("load", () => {
+    errorEl.hidden = true;
+    imageEl.hidden = false;
+  });
 
   overlay.addEventListener("click", (event) => {
     const target = event.target;
@@ -142,7 +200,7 @@ function renderTable(container, rows) {
 
   const bodyHtml = rows
     .map((row) => {
-      const cells = columns.map((column) => `<td>${renderCell(column, row[column])}</td>`).join("");
+      const cells = columns.map((column) => `<td>${renderCell(column, row[column], row)}</td>`).join("");
       return `<tr>${cells}</tr>`;
     })
     .join("");
@@ -236,7 +294,9 @@ activeTableWrap.addEventListener("click", (event) => {
   const url = previewButton.getAttribute("data-image-url");
   if (!url) return;
 
-  imagePreview.open(url);
+  const sourceUrl = previewButton.getAttribute("data-source-url") || "";
+  const hint = previewButton.getAttribute("data-hint") || "";
+  imagePreview.open(url, hint, sourceUrl);
 });
 
 refreshBtn.addEventListener("click", loadDashboard);
