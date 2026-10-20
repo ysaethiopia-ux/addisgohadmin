@@ -22,6 +22,8 @@ let state = {
   upgradeTransaction: { data: [], count: 0 }
 };
 
+const imagePreview = createImagePreview();
+
 function renderCards(totals) {
   const cardData = [
     { label: "Total Leads", value: totals.funnelLead ?? 0 },
@@ -47,6 +49,88 @@ function normalizeValue(value) {
   return String(value);
 }
 
+function escapeHtml(value) {
+  return String(value)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function isLikelyScreenshotColumn(column) {
+  return /screenshot|image|receipt|proof/i.test(column);
+}
+
+function isImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return false;
+  if (raw.startsWith("data:image/")) return true;
+  try {
+    const parsed = new URL(raw);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch (_error) {
+    return false;
+  }
+}
+
+function renderCell(column, rawValue) {
+  const value = normalizeValue(rawValue);
+  const safeValue = escapeHtml(value);
+
+  if (isLikelyScreenshotColumn(column) && isImageUrl(value)) {
+    const safeUrl = escapeHtml(value);
+    return `
+      <button type="button" class="image-preview-btn" data-image-url="${safeUrl}" title="Open screenshot preview">
+        View screenshot
+      </button>
+    `;
+  }
+
+  return safeValue;
+}
+
+function createImagePreview() {
+  const overlay = document.createElement("div");
+  overlay.className = "image-preview";
+  overlay.innerHTML = `
+    <div class="image-preview__backdrop" data-close-preview="true"></div>
+    <figure class="image-preview__dialog" role="dialog" aria-modal="true" aria-label="Screenshot preview">
+      <button type="button" class="image-preview__close" data-close-preview="true" aria-label="Close preview">Close</button>
+      <img class="image-preview__img" alt="Screenshot preview" />
+    </figure>
+  `;
+
+  document.body.appendChild(overlay);
+
+  const imageEl = overlay.querySelector(".image-preview__img");
+
+  function close() {
+    overlay.classList.remove("is-open");
+    imageEl.removeAttribute("src");
+  }
+
+  function open(url) {
+    imageEl.src = url;
+    overlay.classList.add("is-open");
+  }
+
+  overlay.addEventListener("click", (event) => {
+    const target = event.target;
+    if (target instanceof Element && target.hasAttribute("data-close-preview")) {
+      close();
+    }
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      close();
+    }
+  });
+
+  return { open, close };
+}
+
 function renderTable(container, rows) {
   if (!Array.isArray(rows) || rows.length === 0) {
     container.innerHTML = `<div class="empty">No records found.</div>`;
@@ -58,7 +142,7 @@ function renderTable(container, rows) {
 
   const bodyHtml = rows
     .map((row) => {
-      const cells = columns.map((column) => `<td>${normalizeValue(row[column])}</td>`).join("");
+      const cells = columns.map((column) => `<td>${renderCell(column, row[column])}</td>`).join("");
       return `<tr>${cells}</tr>`;
     })
     .join("");
@@ -140,6 +224,19 @@ navItems.forEach((button) => {
   button.addEventListener("click", () => {
     setActiveNav(button.dataset.key);
   });
+});
+
+activeTableWrap.addEventListener("click", (event) => {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+
+  const previewButton = target.closest(".image-preview-btn");
+  if (!previewButton) return;
+
+  const url = previewButton.getAttribute("data-image-url");
+  if (!url) return;
+
+  imagePreview.open(url);
 });
 
 refreshBtn.addEventListener("click", loadDashboard);
