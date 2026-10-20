@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>YSA-EX Admin</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Archivo+Black&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="bg-shape bg-shape-a"></div>
+    <div class="bg-shape bg-shape-b"></div>
+
+    <main class="layout">
+      <aside class="sidebar">
+        <p class="eyebrow">YSA-EX</p>
+        <h1>Admin</h1>
+        <p class="subtitle">Choose a table to view live data from Neon.</p>
+
+        <nav class="side-nav" aria-label="Admin tables">
+          <button class="nav-item is-active" type="button" data-key="funnelLead">
+            <span>FunnelLead</span>
+            <strong id="leadCount">0</strong>
+          </button>
+          <button class="nav-item" type="button" data-key="funnelEvent">
+            <span>FunnelEvent</span>
+            <strong id="eventCount">0</strong>
+          </button>
+          <button class="nav-item" type="button" data-key="upgradeTransaction">
+            <span>UpgradeTransaction</span>
+            <strong id="transactionCount">0</strong>
+          </button>
+        </nav>
+
+        <button id="refreshBtn" class="refresh-btn" type="button">Refresh Data</button>
+      </aside>
+
+      <section class="content">
+        <section class="cards" id="cards"></section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <h2 id="activeTitle">FunnelLead</h2>
+            <span id="activeCount" class="pill">0 rows</span>
+          </div>
+          <div class="table-wrap" id="activeTableWrap"></div>
+        </section>
+      </section>
+    </main>
+
+    <template id="emptyTemplate">
+      <div class="empty">No records found.</div>
+    </template>
+
+    <script src="./app.js" defer></script>
+  </body>
+</html>

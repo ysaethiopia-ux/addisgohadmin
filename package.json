@@ -1,0 +1,16 @@
+{
+  "name": "ysa-ex-admin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "YSA-EX admin dashboard for FunnelLead, FunnelEvent, and UpgradeTransaction",
+  "main": "server.js",
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^1.0.1",
+    "dotenv": "^16.6.1",
+    "express": "^5.1.0"
+  }
+}
