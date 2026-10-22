@@ -293,12 +293,6 @@ function renderMarketingCards(analytics) {
       sub: "UpgradeTransaction records",
       value: formatNumber(total.upgradeSubmissions ?? 0),
       color: "ink"
-    },
-    {
-      label: "Confirmed Upgrades",
-      sub: "Status APPROVED/CONFIRMED",
-      value: formatNumber(total.confirmedUpgrades ?? 0),
-      color: "ok"
     }
   ];
 
@@ -325,19 +319,6 @@ function renderMarketingAnalyticsView(analytics) {
   const { channels, trafficSessionAvailable, recentActivity } = analytics;
   const list = [channels.instagram, channels.facebook, channels.direct_other, channels.total];
 
-  let migrationNoticeHtml = "";
-  if (!trafficSessionAvailable) {
-    migrationNoticeHtml = `
-      <div class="migration-notice">
-        <div class="migration-notice__icon">ℹ</div>
-        <div class="migration-notice__content">
-          <strong>TrafficSession table is not yet migrated in Neon.</strong>
-          <span>Link clicks (ClickEvent), New registered leads (FunnelLead.source), and Upgrade Submissions (UpgradeTransaction.source) are actively tracking real database values. Unique visitors and sessions will automatically populate once TrafficSession is added.</span>
-        </div>
-      </div>
-    `;
-  }
-
   const tableRowsHtml = list
     .map((row) => {
       const isTotal = row.channel === "total";
@@ -361,8 +342,6 @@ function renderMarketingAnalyticsView(analytics) {
           <td>${visitsDisplay}</td>
           <td><strong class="metric-leads">${formatNumber(row.newRegisteredLeads)}</strong></td>
           <td><strong>${formatNumber(row.upgradeSubmissions)}</strong></td>
-          <td><strong class="metric-confirmed">${formatNumber(row.confirmedUpgrades)}</strong></td>
-          <td><span class="rate-badge">${row.leadToSubmissionRate}%</span></td>
         </tr>
       `;
     })
@@ -406,8 +385,6 @@ function renderMarketingAnalyticsView(analytics) {
     : `<tr><td colspan="6" class="empty">No upgrade submissions in this timeframe.</td></tr>`;
 
   marketingAnalyticsWrap.innerHTML = `
-    ${migrationNoticeHtml}
-
     <div class="analytics-section">
       <div class="section-title-wrap">
         <h3>Channel Performance Comparison</h3>
@@ -423,8 +400,6 @@ function renderMarketingAnalyticsView(analytics) {
               <th>Total Visits</th>
               <th>New Registered Leads</th>
               <th>Upgrade Submissions</th>
-              <th>Confirmed Upgrades</th>
-              <th>Lead → Upgrade Rate</th>
             </tr>
           </thead>
           <tbody>
