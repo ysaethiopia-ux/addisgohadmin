@@ -7,7 +7,6 @@ const eventCountEl = document.getElementById("eventCount");
 const transactionCountEl = document.getElementById("transactionCount");
 const analyticsCountEl = document.getElementById("analyticsCount");
 const activeTitleEl = document.getElementById("activeTitle");
-const activeSubtitleEl = document.getElementById("activeSubtitle");
 const activeCountEl = document.getElementById("activeCount");
 const activeTableWrap = document.getElementById("activeTableWrap");
 const marketingAnalyticsWrap = document.getElementById("marketingAnalyticsWrap");
@@ -26,169 +25,55 @@ const authErrorMsg = document.getElementById("authErrorMsg");
 const authSubmitBtn = document.getElementById("authSubmitBtn");
 const logoutBtn = document.getElementById("logoutBtn");
 
-let activeKey = "marketingAnalytics"; // Default to Lead Tracking
+const tableMeta = {
+  funnelLead: { label: "FunnelLead", countEl: leadCountEl },
+  upgradeTransaction: { label: "UpgradeTransaction", countEl: transactionCountEl },
+  marketingAnalytics: { label: "Lead Tracking & Funnel Analytics", countEl: analyticsCountEl }
+};
+
+let activeKey = "funnelLead"; // Initial default
 let activePreset = "all";
 let currentStartDateIso = null;
 let currentEndDateIso = null;
 
 let state = {
-  marketingAnalytics: null,
+  overviewTotals: {},
   funnelLead: { data: [], count: 0 },
   funnelEvent: { data: [], count: 0 },
-  upgradeTransaction: { data: [], count: 0 }
-};
-
-const tableMeta = {
-  marketingAnalytics: {
-    label: "Lead Tracking & Funnel Analytics",
-    subtitle: "Real-time channel attribution and conversion rates across Instagram, Facebook, and Direct traffic.",
-    countEl: analyticsCountEl
-  },
-  funnelLead: {
-    label: "FunnelLead Records",
-    subtitle: "Raw lead submissions from the marketing funnel Join Now form.",
-    countEl: leadCountEl
-  },
-  funnelEvent: {
-    label: "FunnelEvent Telemetry",
-    subtitle: "Granular lead interaction events (e.g., clicks, downloads, registration completions).",
-    countEl: eventCountEl
-  },
-  upgradeTransaction: {
-    label: "UpgradeTransaction Submissions",
-    subtitle: "Payment submissions, receipts, and verification statuses.",
-    countEl: transactionCountEl
-  }
+  upgradeTransaction: { data: [], count: 0 },
+  marketingAnalytics: null
 };
 
 const imagePreview = createImagePreview();
 
-// Detect and display client timezone
+// Detect client timezone
 const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 if (timezoneBadge) {
   timezoneBadge.textContent = `Timezone: ${userTimezone}`;
 }
 
-// --- TIMEZONE & FULL-DAY BOUNDARY HELPERS ---
+// --- INITIAL FORM: CARDS FOR RAW TABLES ---
 
-function getUtcRangeForLocalDate(date) {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
-  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-  return {
-    startIso: start.toISOString(),
-    endIso: end.toISOString()
-  };
+function renderCards(totals) {
+  const cardData = [
+    { label: "Total Leads", value: totals.funnelLead ?? 0 },
+    { label: "Upgrade Submissions", value: totals.upgradeTransaction ?? 0 }
+  ];
+
+  cards.className = "cards cards--overview";
+  cards.innerHTML = cardData
+    .map(
+      (item, index) => `
+      <article class="card" style="animation-delay:${index * 0.08}s">
+        <h3>${item.label}</h3>
+        <p>${Number(item.value).toLocaleString()}</p>
+      </article>
+    `
+    )
+    .join("");
 }
 
-function getUtcRangeForPreset(preset) {
-  const now = new Date();
-  if (preset === "today") {
-    return getUtcRangeForLocalDate(now);
-  }
-  if (preset === "yesterday") {
-    const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
-    return getUtcRangeForLocalDate(yest);
-  }
-  if (preset === "7d") {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    return { startIso: start.toISOString(), endIso: end.toISOString() };
-  }
-  if (preset === "30d") {
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
-    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    return { startIso: start.toISOString(), endIso: end.toISOString() };
-  }
-  // All Time
-  return { startIso: null, endIso: null };
-}
-
-function getUtcRangeForCustom(startVal, endVal) {
-  let startIso = null;
-  let endIso = null;
-
-  if (startVal) {
-    const [y, m, d] = startVal.split("-").map(Number);
-    const s = new Date(y, m - 1, d, 0, 0, 0, 0);
-    startIso = s.toISOString();
-  }
-  if (endVal) {
-    const [y, m, d] = endVal.split("-").map(Number);
-    const e = new Date(y, m - 1, d, 23, 59, 59, 999);
-    endIso = e.toISOString();
-  }
-
-  return { startIso, endIso };
-}
-
-// --- AUTHENTICATION HANDLING ---
-
-function showAuthModal() {
-  authModal.hidden = false;
-  adminPasscodeInput.value = "";
-  authErrorMsg.hidden = true;
-  adminPasscodeInput.focus();
-}
-
-function hideAuthModal() {
-  authModal.hidden = true;
-  authErrorMsg.hidden = true;
-}
-
-authForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const password = adminPasscodeInput.value.trim();
-  if (!password) return;
-
-  authSubmitBtn.disabled = true;
-  authSubmitBtn.textContent = "Verifying...";
-  authErrorMsg.hidden = true;
-
-  try {
-    const res = await fetch("/api/auth/login", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password })
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      throw new Error(data.error || "Authentication failed");
-    }
-
-    hideAuthModal();
-    loadDashboard();
-  } catch (err) {
-    authErrorMsg.textContent = err.message || "Invalid passcode";
-    authErrorMsg.hidden = false;
-  } finally {
-    authSubmitBtn.disabled = false;
-    authSubmitBtn.textContent = "Unlock Dashboard";
-  }
-});
-
-logoutBtn.addEventListener("click", async () => {
-  try {
-    await fetch("/api/auth/logout", { method: "POST" });
-  } finally {
-    showAuthModal();
-  }
-});
-
-async function fetchJson(url, options = {}) {
-  const response = await fetch(url, options);
-  if (response.status === 401) {
-    showAuthModal();
-    throw new Error("AUTH_REQUIRED");
-  }
-  const payload = await response.json();
-  if (!response.ok) {
-    throw new Error(payload.message || payload.error || "Request failed");
-  }
-  return payload;
-}
-
-// --- RENDERING HELPERS ---
+// --- INITIAL FORM: CELL RENDERING FOR RAW TABLES ---
 
 function normalizeValue(value) {
   if (value === null || value === undefined) return "-";
@@ -203,27 +88,6 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#39;");
-}
-
-function formatNumber(num) {
-  if (num === null || num === undefined) return "—";
-  return Number(num).toLocaleString();
-}
-
-function formatDate(isoString) {
-  if (!isoString) return "-";
-  try {
-    const d = new Date(isoString);
-    if (isNaN(d.getTime())) return isoString;
-    return d.toLocaleString(undefined, {
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit"
-    });
-  } catch (_e) {
-    return isoString;
-  }
 }
 
 function isLikelyScreenshotColumn(column) {
@@ -259,7 +123,9 @@ function renderCell(column, rawValue, row) {
   if (isLikelyScreenshotColumn(column) && isImageUrl(value)) {
     const sourceUrl = value;
     const previewUrl =
-      row?.id ? `/api/upgrade-transactions/${encodeURIComponent(row.id)}/screenshot` : sourceUrl;
+      activeKey === "upgradeTransaction" && row?.id
+        ? `/api/upgrade-transactions/${encodeURIComponent(row.id)}/screenshot`
+        : sourceUrl;
 
     const safePreviewUrl = escapeHtml(previewUrl);
     const safeSourceUrl = escapeHtml(sourceUrl);
@@ -271,19 +137,109 @@ function renderCell(column, rawValue, row) {
     `;
   }
 
-  if (column === "source") {
-    return renderChannelBadge(rawValue);
-  }
-
-  if (column === "status") {
-    return `<span class="status-pill status-${escapeHtml(String(rawValue).toLowerCase())}">${safeValue}</span>`;
-  }
-
-  if (column === "createdAt" || column === "updatedAt") {
-    return formatDate(rawValue);
-  }
-
   return safeValue;
+}
+
+function renderTable(container, rows) {
+  if (!Array.isArray(rows) || rows.length === 0) {
+    container.innerHTML = `<div class="empty">No records found.</div>`;
+    return;
+  }
+
+  let columns = Object.keys(rows[0]);
+  if (activeKey === "funnelLead") {
+    const desired = ["id", "fullName", "email", "phone", "status"];
+    columns = desired.filter((col) => col in rows[0]);
+  } else if (activeKey === "upgradeTransaction") {
+    const desired = ["id", "firstName", "lastName", "phone", "transactionNo", "screenshotUrl"];
+    columns = desired.filter((col) => col in rows[0]);
+  }
+  const headHtml = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
+
+  const bodyHtml = rows
+    .map((row) => {
+      const cells = columns
+        .map((column) => `<td>${renderCell(column, row[column], row)}</td>`)
+        .join("");
+      return `<tr>${cells}</tr>`;
+    })
+    .join("");
+
+  container.innerHTML = `
+    <table>
+      <thead><tr>${headHtml}</tr></thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>
+  `;
+}
+
+function renderActiveTable() {
+  const meta = tableMeta[activeKey];
+  const selected = state[activeKey] || { data: [], count: 0 };
+
+  activeTitleEl.textContent = meta.label;
+  activeCountEl.textContent = `${selected.count || 0} rows`;
+  renderTable(activeTableWrap, selected.data || []);
+}
+
+function renderError(container, message) {
+  container.innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
+}
+
+// --- NAVIGATION SWITCHER ---
+
+function setActiveNav(nextKey) {
+  activeKey = nextKey;
+  navItems.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.key === nextKey);
+  });
+  renderActiveView();
+}
+
+function renderActiveView() {
+  if (activeKey === "marketingAnalytics") {
+    // Lead Tracking section
+    analyticsFilterBar.hidden = false;
+    marketingAnalyticsWrap.hidden = false;
+    activeTableWrap.hidden = true;
+
+    activeTitleEl.textContent = tableMeta.marketingAnalytics.label;
+    activeCountEl.textContent = "Live database data";
+
+    renderMarketingCards(state.marketingAnalytics);
+    renderMarketingAnalyticsView(state.marketingAnalytics);
+  } else {
+    // Reserved initial form for FunnelLead, FunnelEvent, and UpgradeTransaction
+    analyticsFilterBar.hidden = true;
+    marketingAnalyticsWrap.hidden = true;
+    activeTableWrap.hidden = false;
+
+    renderCards(state.overviewTotals || {});
+    renderActiveTable();
+  }
+}
+
+// --- LEAD TRACKING LOGIC & RENDERING ---
+
+function formatNumber(num) {
+  if (num === null || num === undefined) return "—";
+  return Number(num).toLocaleString();
+}
+
+function formatDate(isoString) {
+  if (!isoString) return "-";
+  try {
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return d.toLocaleString(undefined, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit"
+    });
+  } catch (_e) {
+    return isoString;
+  }
 }
 
 function renderChannelBadge(channel) {
@@ -296,8 +252,6 @@ function renderChannelBadge(channel) {
   }
   return `<span class="channel-badge channel-direct">Direct / Other</span>`;
 }
-
-// --- MARKETING ANALYTICS CARDS & TABLE ---
 
 function renderMarketingCards(analytics) {
   const total = analytics?.channels?.total || {};
@@ -330,7 +284,7 @@ function renderMarketingCards(analytics) {
     },
     {
       label: "Registration Events",
-      sub: "FunnelEvent (all events)",
+      sub: "FunnelEvent records",
       value: formatNumber(analytics?.registrationEventsCount ?? 0),
       color: "accent"
     },
@@ -355,27 +309,6 @@ function renderMarketingCards(analytics) {
       <article class="card card--${item.color}" style="animation-delay:${index * 0.04}s">
         <h3>${item.label}</h3>
         <p>${item.value}</p>
-        <span class="card-meta">${item.sub}</span>
-      </article>
-    `
-    )
-    .join("");
-}
-
-function renderOverviewCards(totals) {
-  const cardData = [
-    { label: "Total Funnel Leads", value: totals.funnelLead ?? 0, sub: "All time records in DB" },
-    { label: "Funnel Events", value: totals.funnelEvent ?? 0, sub: "Interaction telemetry" },
-    { label: "Upgrade Submissions", value: totals.upgradeTransaction ?? 0, sub: "Receipts submitted" }
-  ];
-
-  cards.className = "cards cards--overview";
-  cards.innerHTML = cardData
-    .map(
-      (item, index) => `
-      <article class="card" style="animation-delay:${index * 0.08}s">
-        <h3>${item.label}</h3>
-        <p>${Number(item.value).toLocaleString()}</p>
         <span class="card-meta">${item.sub}</span>
       </article>
     `
@@ -507,7 +440,7 @@ function renderMarketingAnalyticsView(analytics) {
           <h4>Recent Leads Attributed</h4>
           <span class="pill">${leads.length} recent</span>
         </div>
-        <div class="table-wrap subtable-wrap">
+        <div class="subtable-wrap">
           <table>
             <thead>
               <tr>
@@ -530,7 +463,7 @@ function renderMarketingAnalyticsView(analytics) {
           <h4>Recent Upgrade Submissions</h4>
           <span class="pill">${txs.length} recent</span>
         </div>
-        <div class="table-wrap subtable-wrap">
+        <div class="subtable-wrap">
           <table>
             <thead>
               <tr>
@@ -552,73 +485,123 @@ function renderMarketingAnalyticsView(analytics) {
   `;
 }
 
-function renderTable(container, rows) {
-  if (!Array.isArray(rows) || rows.length === 0) {
-    container.innerHTML = `<div class="empty">No records found.</div>`;
-    return;
+// --- TIMEZONE & FULL-DAY BOUNDARY HELPERS ---
+
+function getUtcRangeForLocalDate(date) {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 0, 0, 0, 0);
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  return {
+    startIso: start.toISOString(),
+    endIso: end.toISOString()
+  };
+}
+
+function getUtcRangeForPreset(preset) {
+  const now = new Date();
+  if (preset === "today") {
+    return getUtcRangeForLocalDate(now);
+  }
+  if (preset === "yesterday") {
+    const yest = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    return getUtcRangeForLocalDate(yest);
+  }
+  if (preset === "7d") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+  if (preset === "30d") {
+    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+    const end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    return { startIso: start.toISOString(), endIso: end.toISOString() };
+  }
+  // All Time
+  return { startIso: null, endIso: null };
+}
+
+function getUtcRangeForCustom(startVal, endVal) {
+  let startIso = null;
+  let endIso = null;
+
+  if (startVal) {
+    const [y, m, d] = startVal.split("-").map(Number);
+    const s = new Date(y, m - 1, d, 0, 0, 0, 0);
+    startIso = s.toISOString();
+  }
+  if (endVal) {
+    const [y, m, d] = endVal.split("-").map(Number);
+    const e = new Date(y, m - 1, d, 23, 59, 59, 999);
+    endIso = e.toISOString();
   }
 
-  const columns = Object.keys(rows[0]);
-  const headHtml = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
-
-  const bodyHtml = rows
-    .map((row) => {
-      const cells = columns
-        .map((column) => `<td>${renderCell(column, row[column], row)}</td>`)
-        .join("");
-      return `<tr>${cells}</tr>`;
-    })
-    .join("");
-
-  container.innerHTML = `
-    <table>
-      <thead><tr>${headHtml}</tr></thead>
-      <tbody>${bodyHtml}</tbody>
-    </table>
-  `;
+  return { startIso, endIso };
 }
 
-function renderError(container, message) {
-  container.innerHTML = `<div class="error">${escapeHtml(message)}</div>`;
+// --- AUTHENTICATION HANDLING ---
+
+function showAuthModal() {
+  authModal.hidden = false;
+  adminPasscodeInput.value = "";
+  authErrorMsg.hidden = true;
+  adminPasscodeInput.focus();
 }
 
-function setActiveNav(nextKey) {
-  activeKey = nextKey;
-  navItems.forEach((button) => {
-    button.classList.toggle("is-active", button.dataset.key === nextKey);
-  });
-  renderActiveView();
+function hideAuthModal() {
+  authModal.hidden = true;
+  authErrorMsg.hidden = true;
 }
 
-function renderActiveView() {
-  const meta = tableMeta[activeKey] || tableMeta.marketingAnalytics;
-  activeTitleEl.textContent = meta.label;
-  if (activeSubtitleEl) {
-    activeSubtitleEl.textContent = meta.subtitle || "";
-  }
+authForm.addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const password = adminPasscodeInput.value.trim();
+  if (!password) return;
 
-  if (activeKey === "marketingAnalytics") {
-    analyticsFilterBar.hidden = false;
-    marketingAnalyticsWrap.hidden = false;
-    activeTableWrap.hidden = true;
-    activeCountEl.textContent = "Live attribution";
+  authSubmitBtn.disabled = true;
+  authSubmitBtn.textContent = "Verifying...";
+  authErrorMsg.hidden = true;
 
-    renderMarketingCards(state.marketingAnalytics);
-    renderMarketingAnalyticsView(state.marketingAnalytics);
-  } else {
-    analyticsFilterBar.hidden = true;
-    marketingAnalyticsWrap.hidden = true;
-    activeTableWrap.hidden = false;
+  try {
+    const res = await fetch("/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ password })
+    });
+    const data = await res.json();
 
-    const selected = state[activeKey] || { data: [], count: 0 };
-    activeCountEl.textContent = `${selected.count || 0} rows`;
-
-    // Overview cards
-    if (state.overviewTotals) {
-      renderOverviewCards(state.overviewTotals);
+    if (!res.ok) {
+      throw new Error(data.error || "Authentication failed");
     }
-    renderTable(activeTableWrap, selected.data || []);
+
+    hideAuthModal();
+    loadDashboard();
+  } catch (err) {
+    authErrorMsg.textContent = err.message || "Invalid passcode";
+    authErrorMsg.hidden = false;
+  } finally {
+    authSubmitBtn.disabled = false;
+    authSubmitBtn.textContent = "Unlock Dashboard";
   }
+});
+
+logoutBtn.addEventListener("click", async () => {
+  try {
+    await fetch("/api/auth/logout", { method: "POST" });
+  } finally {
+    showAuthModal();
+  }
+});
+
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
+  if (response.status === 401) {
+    showAuthModal();
+    throw new Error("AUTH_REQUIRED");
+  }
+  const payload = await response.json();
+  if (!response.ok) {
+    throw new Error(payload.message || payload.error || "Request failed");
+  }
+  return payload;
 }
 
 // --- DATA FETCHING ---
@@ -664,7 +647,9 @@ async function loadDashboard() {
     };
 
     leadCountEl.textContent = String(leads.count || 0);
-    eventCountEl.textContent = String(events.count || 0);
+    if (eventCountEl) {
+      eventCountEl.textContent = String(events.count || 0);
+    }
     transactionCountEl.textContent = String(transactions.count || 0);
     if (analyticsCountEl) {
       analyticsCountEl.textContent = "Live";
@@ -673,20 +658,20 @@ async function loadDashboard() {
     renderActiveView();
   } catch (error) {
     if (error.message === "AUTH_REQUIRED") return;
-    cards.innerHTML = `<article class="card"><h3>Connection</h3><p>Failed</p><span class="card-meta">${escapeHtml(error.message)}</span></article>`;
+    cards.innerHTML = `<article class="card"><h3>Connection</h3><p>Failed</p></article>`;
     if (activeKey === "marketingAnalytics") {
       renderError(marketingAnalyticsWrap, error.message);
     } else {
       renderError(activeTableWrap, error.message);
     }
-    activeCountEl.textContent = "Error";
+    activeCountEl.textContent = "0 rows";
   } finally {
     refreshBtn.disabled = false;
     refreshBtn.textContent = "Refresh Data";
   }
 }
 
-// --- PRESET & FILTER LISTENERS ---
+// --- LISTENERS ---
 
 presetBtns.forEach((btn) => {
   btn.addEventListener("click", () => {
@@ -714,8 +699,7 @@ navItems.forEach((button) => {
   });
 });
 
-// Image preview modal handler
-document.addEventListener("click", (event) => {
+activeTableWrap.addEventListener("click", (event) => {
   const target = event.target;
   if (!(target instanceof Element)) return;
 
@@ -730,9 +714,7 @@ document.addEventListener("click", (event) => {
   imagePreview.open(url, hint, sourceUrl);
 });
 
-refreshBtn.addEventListener("click", loadDashboard);
-
-// Screenshot Preview Component
+// Image Preview Component
 function createImagePreview() {
   const overlay = document.createElement("div");
   overlay.className = "image-preview";
@@ -811,6 +793,8 @@ function createImagePreview() {
 
   return { open, close };
 }
+
+refreshBtn.addEventListener("click", loadDashboard);
 
 // Initial load
 loadDashboard();

@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>YSA-EX Admin &amp; Marketing Analytics</title>
+    <title>YSA-EX Admin</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Archivo+Black&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Archivo+Black&display=swap"
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./styles.css" />
@@ -20,7 +20,7 @@
       <aside class="sidebar">
         <p class="eyebrow">YSA-EX</p>
         <h1>Admin</h1>
-        <p class="subtitle">Live marketing funnel and database telemetry.</p>
+        <p class="subtitle">Choose a table to view live data from Neon.</p>
 
         <div class="sidebar-auth" id="sidebarAuth">
           <div class="auth-status-indicator">
@@ -30,22 +30,18 @@
           <button id="logoutBtn" class="logout-btn" type="button" title="Log out of admin session">Logout</button>
         </div>
 
-        <nav class="side-nav" aria-label="Admin tables and analytics">
-          <button class="nav-item is-active" type="button" data-key="marketingAnalytics">
-            <span>Lead Tracking</span>
-            <strong id="analyticsCount">Live</strong>
-          </button>
-          <button class="nav-item" type="button" data-key="funnelLead">
+        <nav class="side-nav" aria-label="Admin tables">
+          <button class="nav-item is-active" type="button" data-key="funnelLead">
             <span>FunnelLead</span>
             <strong id="leadCount">0</strong>
-          </button>
-          <button class="nav-item" type="button" data-key="funnelEvent">
-            <span>FunnelEvent</span>
-            <strong id="eventCount">0</strong>
           </button>
           <button class="nav-item" type="button" data-key="upgradeTransaction">
             <span>UpgradeTransaction</span>
             <strong id="transactionCount">0</strong>
+          </button>
+          <button class="nav-item" type="button" data-key="marketingAnalytics">
+            <span>Lead Tracking</span>
+            <strong id="analyticsCount">Live</strong>
           </button>
         </nav>
 
@@ -53,8 +49,8 @@
       </aside>
 
       <section class="content">
-        <!-- Date Range Filter Bar (Visible in Lead Tracking section) -->
-        <section class="analytics-filter-bar" id="analyticsFilterBar">
+        <!-- Date Range Filter Bar (Visible only when Lead Tracking is selected) -->
+        <section class="analytics-filter-bar" id="analyticsFilterBar" hidden>
           <div class="filter-presets">
             <button type="button" class="preset-btn is-active" data-preset="all">All Time</button>
             <button type="button" class="preset-btn" data-preset="today">Today</button>
@@ -73,30 +69,29 @@
             </div>
             <button type="submit" class="filter-apply-btn">Apply</button>
           </form>
-          <div class="timezone-badge" id="timezoneBadge">Timezone: Detecting...</div>
+          <div class="timezone-badge" id="timezoneBadge">Timezone: UTC</div>
         </section>
 
-        <!-- KPI Summary Cards -->
         <section class="cards" id="cards"></section>
 
-        <!-- Main Data Panel -->
         <section class="panel">
           <div class="panel-header">
-            <div>
-              <h2 id="activeTitle">Lead Tracking &amp; Funnel Analytics</h2>
-              <p id="activeSubtitle" class="panel-subtitle">Channel attribution and conversion rates</p>
-            </div>
-            <span id="activeCount" class="pill">Real database data</span>
+            <h2 id="activeTitle">FunnelLead</h2>
+            <span id="activeCount" class="pill">0 rows</span>
           </div>
 
-          <!-- Marketing Analytics Container -->
-          <div id="marketingAnalyticsWrap" class="analytics-wrap"></div>
+          <!-- Lead Tracking / Marketing Analytics View -->
+          <div id="marketingAnalyticsWrap" class="analytics-wrap" hidden></div>
 
-          <!-- Raw Table View (for FunnelLead, FunnelEvent, UpgradeTransaction) -->
-          <div class="table-wrap" id="activeTableWrap" hidden></div>
+          <!-- Raw Table View (active for FunnelLead, FunnelEvent, UpgradeTransaction) -->
+          <div class="table-wrap" id="activeTableWrap"></div>
         </section>
       </section>
     </main>
+
+    <template id="emptyTemplate">
+      <div class="empty">No records found.</div>
+    </template>
 
     <!-- Admin Authentication Modal -->
     <div id="authModal" class="auth-modal" hidden>
@@ -104,7 +99,7 @@
       <div class="auth-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="authTitle">
         <span class="auth-modal__badge">Protected Area</span>
         <h2 id="authTitle">Admin Authentication</h2>
-        <p class="auth-modal__desc">Please enter the admin passcode to access live funnel tracking and customer records.</p>
+        <p class="auth-modal__desc">Please enter the admin passcode to access this dashboard.</p>
         <form id="authForm" class="auth-form">
           <div class="form-group">
             <label for="adminPasscodeInput">Admin Passcode</label>
@@ -112,7 +107,7 @@
               type="password"
               id="adminPasscodeInput"
               class="auth-input"
-              placeholder="Enter passcode (default: admin123)"
+              placeholder="Enter passcode"
               autocomplete="current-password"
               required
             />

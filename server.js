@@ -268,13 +268,13 @@ async function loadTransactionScreenshot(id) {
 async function queryTable(tableName, limit) {
   const safeLimit = parseLimit(limit);
   if (tableName === "FunnelLead") {
-    return sql`SELECT * FROM "FunnelLead" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
+    return sql`SELECT "id", "fullName", "email", "phone", "status" FROM "FunnelLead" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
   }
   if (tableName === "FunnelEvent") {
     return sql`SELECT * FROM "FunnelEvent" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
   }
   if (tableName === "UpgradeTransaction") {
-    return sql`SELECT * FROM "UpgradeTransaction" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
+    return sql`SELECT "id", "firstName", "lastName", "phone", "transactionNo", "screenshotUrl" FROM "UpgradeTransaction" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
   }
   throw new Error("Unsupported table");
 }
