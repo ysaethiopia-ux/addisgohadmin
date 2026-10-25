@@ -325,7 +325,17 @@ h1 {
 }
 
 .cards--overview {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.cards--overview-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+@media (max-width: 768px) {
+  .cards--overview-3 {
+    grid-template-columns: 1fr;
+  }
 }
 
 .cards--analytics {
@@ -591,6 +601,111 @@ h1 {
   background: #e0f2fe;
   color: #0369a1;
   border: 1px solid #bae6fd;
+}
+
+/* Person Cell */
+.person-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.person-name {
+  color: #0f172a;
+  font-weight: 700;
+  font-size: 0.94rem;
+}
+
+.person-cell__sub {
+  font-size: 0.78rem;
+  color: #64748b;
+  font-weight: 500;
+}
+
+/* Event Badges */
+.event-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 999px;
+  padding: 0.22rem 0.65rem;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.event-badge--reg {
+  background: #ecfdf5;
+  color: #047857;
+  border: 1px solid #a7f3d0;
+}
+
+.event-badge--free {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border: 1px solid #bfdbfe;
+}
+
+.event-badge--telegram {
+  background: #f0fdfa;
+  color: #0284c7;
+  border: 1px solid #bae6fd;
+}
+
+.event-badge--download {
+  background: #faf5ff;
+  color: #7e22ce;
+  border: 1px solid #e9d5ff;
+}
+
+.event-badge--upgrade {
+  background: #fffbeb;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.event-badge--generic {
+  background: #f1f5f9;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+}
+
+/* Metadata Cell */
+.meta-cell {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.meta-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.76rem;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  color: #334155;
+  font-weight: 500;
+}
+
+.meta-pill__key {
+  color: #64748b;
+  font-weight: 600;
+}
+
+.meta-empty {
+  color: #94a3b8;
+  font-size: 0.88rem;
+}
+
+.date-cell {
+  font-size: 0.88rem;
+  color: #475569;
+  font-weight: 500;
 }
 
 /* Attribution Section (Stacked full-width cards) */

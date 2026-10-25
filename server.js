@@ -271,7 +271,22 @@ async function queryTable(tableName, limit) {
     return sql`SELECT "id", "fullName", "email", "phone", "status" FROM "FunnelLead" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
   }
   if (tableName === "FunnelEvent") {
-    return sql`SELECT * FROM "FunnelEvent" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
+    return sql`
+      SELECT 
+        fe."id",
+        COALESCE(fl."fullName", 'Unknown Lead') AS "personName",
+        fl."phone",
+        fl."email",
+        fe."eventType",
+        fe."metadata",
+        fe."createdAt",
+        fe."leadId"
+      FROM "FunnelEvent" fe
+      LEFT JOIN "FunnelLead" fl ON fe."leadId" = fl."id"
+      WHERE fe."eventType" != 'DOWNLOAD_CLICKED'
+      ORDER BY fe."createdAt" DESC
+      LIMIT ${safeLimit};
+    `;
   }
   if (tableName === "UpgradeTransaction") {
     return sql`SELECT "id", "firstName", "lastName", "phone", "transactionNo", "screenshotUrl" FROM "UpgradeTransaction" ORDER BY "createdAt" DESC LIMIT ${safeLimit};`;
@@ -337,7 +352,7 @@ app.post("/api/auth/logout", (_req, res) => {
 app.get("/api/overview", requireAdminAuth, async (_req, res) => {
   try {
     const [leadCount] = await sql`SELECT COUNT(*)::int AS total FROM "FunnelLead";`;
-    const [eventCount] = await sql`SELECT COUNT(*)::int AS total FROM "FunnelEvent";`;
+    const [eventCount] = await sql`SELECT COUNT(*)::int AS total FROM "FunnelEvent" WHERE "eventType" != 'DOWNLOAD_CLICKED';`;
     const [transactionCount] = await sql`SELECT COUNT(*)::int AS total FROM "UpgradeTransaction";`;
     const [clickCount] = await sql`SELECT COUNT(*)::int AS total FROM "ClickEvent";`;
 
@@ -592,13 +607,32 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
       LIMIT 10;
     `;
 
-    const [clicksRows, leadsRows, eventsRows, txRows, recentLeads, recentTx] = await Promise.all([
+    const recentEventsPromise = sql`
+      SELECT 
+        fe."id",
+        fe."eventType",
+        fe."metadata",
+        fe."createdAt",
+        COALESCE(fl."fullName", 'Unknown Lead') AS "personName",
+        fl."phone",
+        fe."leadId"
+      FROM "FunnelEvent" fe
+      LEFT JOIN "FunnelLead" fl ON fe."leadId" = fl."id"
+      WHERE fe."eventType" != 'DOWNLOAD_CLICKED'
+        AND (${startDateIso}::timestamp IS NULL OR fe."createdAt" >= ${startDateIso}::timestamp)
+        AND (${endDateIso}::timestamp IS NULL OR fe."createdAt" <= ${endDateIso}::timestamp)
+      ORDER BY fe."createdAt" DESC
+      LIMIT 10;
+    `;
+
+    const [clicksRows, leadsRows, eventsRows, txRows, recentLeads, recentTx, recentEvents] = await Promise.all([
       clicksPromise,
       leadsPromise,
       eventsPromise,
       transactionsPromise,
       recentLeadsPromise,
-      recentTxPromise
+      recentTxPromise,
+      recentEventsPromise
     ]);
 
     // Build channel breakdown maps
@@ -704,6 +738,7 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
       channels: formattedChannels,
       recentActivity: {
         leads: recentLeads,
+        events: recentEvents,
         transactions: recentTx
       }
     });

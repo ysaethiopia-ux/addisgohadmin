@@ -27,8 +27,25 @@ const logoutBtn = document.getElementById("logoutBtn");
 
 const tableMeta = {
   funnelLead: { label: "FunnelLead", countEl: leadCountEl },
+  funnelEvent: { label: "FunnelEvent", countEl: eventCountEl },
   upgradeTransaction: { label: "UpgradeTransaction", countEl: transactionCountEl },
   marketingAnalytics: { label: "Lead Tracking & Funnel Analytics", countEl: analyticsCountEl }
+};
+
+const COLUMN_HEADERS = {
+  personName: "Person (Name)",
+  fullName: "Full Name",
+  firstName: "First Name",
+  lastName: "Last Name",
+  email: "Email",
+  phone: "Phone",
+  status: "Status",
+  eventType: "Event Type",
+  metadata: "Event Details / Source",
+  createdAt: "Date & Time",
+  transactionNo: "Transaction No",
+  screenshotUrl: "Receipt Screenshot",
+  id: "Record ID"
 };
 
 let activeKey = "funnelLead"; // Initial default
@@ -57,10 +74,11 @@ if (timezoneBadge) {
 function renderCards(totals) {
   const cardData = [
     { label: "Total Leads", value: totals.funnelLead ?? 0 },
+    { label: "Funnel Events", value: totals.funnelEvent ?? 0 },
     { label: "Upgrade Submissions", value: totals.upgradeTransaction ?? 0 }
   ];
 
-  cards.className = "cards cards--overview";
+  cards.className = "cards cards--overview cards--overview-3";
   cards.innerHTML = cardData
     .map(
       (item, index) => `
@@ -116,9 +134,98 @@ function isLikelyInvalidDataImage(value) {
   return payload.length < 120;
 }
 
+function getLeadMap() {
+  const map = new Map();
+  (state.funnelLead?.data || []).forEach((lead) => {
+    if (lead?.id) {
+      map.set(lead.id, lead);
+    }
+  });
+  return map;
+}
+
+function renderEventBadge(eventType) {
+  const type = String(eventType || "").trim();
+  const lower = type.toLowerCase();
+  let badgeClass = "event-badge--generic";
+  let label = type.replace(/_/g, " ");
+
+  if (lower.includes("registration")) {
+    badgeClass = "event-badge--reg";
+    label = "Registration Completed";
+  } else if (lower.includes("continue_free")) {
+    badgeClass = "event-badge--free";
+    label = "Continue Free";
+  } else if (lower.includes("telegram")) {
+    badgeClass = "event-badge--telegram";
+    label = "Telegram Clicked";
+  } else if (lower.includes("download")) {
+    badgeClass = "event-badge--download";
+    label = "Download Clicked";
+  } else if (lower.includes("upgrade")) {
+    badgeClass = "event-badge--upgrade";
+    label = "Upgrade Click";
+  }
+
+  return `<span class="event-badge ${badgeClass}" title="${escapeHtml(type)}">${escapeHtml(label)}</span>`;
+}
+
+function renderMetadataCell(metaRaw) {
+  if (!metaRaw) return `<span class="meta-empty">—</span>`;
+  try {
+    const parsed = typeof metaRaw === "object" ? metaRaw : JSON.parse(metaRaw);
+    if (!parsed || typeof parsed !== "object") {
+      return escapeHtml(String(metaRaw));
+    }
+    const badges = [];
+    if (parsed.source) {
+      badges.push(renderChannelBadge(parsed.source));
+    }
+    const otherKeys = Object.keys(parsed).filter((k) => k !== "source" && k !== "timestamp");
+    otherKeys.forEach((key) => {
+      badges.push(
+        `<span class="meta-pill"><span class="meta-pill__key">${escapeHtml(key)}:</span> ${escapeHtml(String(parsed[key]))}</span>`
+      );
+    });
+    if (badges.length) {
+      return `<div class="meta-cell">${badges.join(" ")}</div>`;
+    }
+    return `<span class="meta-empty">—</span>`;
+  } catch (_e) {
+    return escapeHtml(String(metaRaw));
+  }
+}
+
 function renderCell(column, rawValue, row) {
   const value = normalizeValue(rawValue);
   const safeValue = escapeHtml(value);
+
+  if (column === "personName") {
+    const name = escapeHtml(row.personName || "Unknown Lead");
+    const leadIdHint = row?.leadId ? `title="Lead ID: ${escapeHtml(row.leadId)}"` : "";
+    return `
+      <div class="person-cell" ${leadIdHint}>
+        <strong class="person-name">${name}</strong>
+      </div>
+    `;
+  }
+
+  if (column === "eventType") {
+    return renderEventBadge(rawValue);
+  }
+
+  if (column === "metadata") {
+    return renderMetadataCell(rawValue);
+  }
+
+  if (column === "createdAt") {
+    return `<span class="date-cell" title="${safeValue}">${formatDate(rawValue)}</span>`;
+  }
+
+  if (column === "status") {
+    const statusStr = String(rawValue || "").toLowerCase().replace(/\s+/g, "_");
+    return `<span class="status-pill status-${escapeHtml(statusStr)}">${safeValue}</span>`;
+  }
 
   if (isLikelyScreenshotColumn(column) && isImageUrl(value)) {
     const sourceUrl = value;
@@ -146,20 +253,50 @@ function renderTable(container, rows) {
     return;
   }
 
-  let columns = Object.keys(rows[0]);
+  const leadMap = getLeadMap();
+
+  // Filter out DOWNLOAD_CLICKED so only Telegram action is shown
+  const visibleRows =
+    activeKey === "funnelEvent"
+      ? rows.filter((r) => r.eventType !== "DOWNLOAD_CLICKED")
+      : rows;
+
+  if (visibleRows.length === 0) {
+    container.innerHTML = `<div class="empty">No records found.</div>`;
+    return;
+  }
+
+  let columns = Object.keys(visibleRows[0]);
   if (activeKey === "funnelLead") {
     const desired = ["id", "fullName", "email", "phone", "status"];
-    columns = desired.filter((col) => col in rows[0]);
+    columns = desired.filter((col) => col in visibleRows[0]);
   } else if (activeKey === "upgradeTransaction") {
     const desired = ["id", "firstName", "lastName", "phone", "transactionNo", "screenshotUrl"];
-    columns = desired.filter((col) => col in rows[0]);
+    columns = desired.filter((col) => col in visibleRows[0]);
+  } else if (activeKey === "funnelEvent") {
+    // Show personName instead of ID, and omit DOWNLOAD_CLICKED
+    const desired = ["personName", "phone", "eventType", "metadata", "createdAt"];
+    columns = desired.filter((col) => {
+      if (col === "personName" || col === "phone") return true;
+      return col in visibleRows[0];
+    });
   }
-  const headHtml = columns.map((column) => `<th>${escapeHtml(column)}</th>`).join("");
+  const headHtml = columns.map((column) => `<th>${escapeHtml(COLUMN_HEADERS[column] || column)}</th>`).join("");
 
-  const bodyHtml = rows
+  const bodyHtml = visibleRows
     .map((row) => {
+      const lead = row.leadId ? leadMap.get(row.leadId) : null;
+      const enrichedRow = {
+        ...row,
+        personName:
+          row.personName && row.personName !== "Unknown Lead"
+            ? row.personName
+            : (lead?.fullName || row.personName || "Unknown Lead"),
+        phone: row.phone || lead?.phone || ""
+      };
+
       const cells = columns
-        .map((column) => `<td>${renderCell(column, row[column], row)}</td>`)
+        .map((column) => `<td>${renderCell(column, enrichedRow[column], enrichedRow)}</td>`)
         .join("");
       return `<tr>${cells}</tr>`;
     })
@@ -384,6 +521,34 @@ function renderMarketingAnalyticsView(analytics) {
         .join("")
     : `<tr><td colspan="6" class="empty">No upgrade submissions in this timeframe.</td></tr>`;
 
+  // Recent Funnel Events Table (exclude DOWNLOAD_CLICKED, show TELEGRAM_CLICKED)
+  const leadMap = getLeadMap();
+  const rawEvents = (recentActivity?.events && recentActivity.events.length)
+    ? recentActivity.events
+    : (state.funnelEvent?.data?.slice(0, 10) || []);
+
+  const events = rawEvents.filter((e) => e.eventType !== "DOWNLOAD_CLICKED");
+
+  const eventsRowsHtml = events.length
+    ? events
+        .map((e) => {
+          const lead = e.leadId ? leadMap.get(e.leadId) : null;
+          const personName =
+            e.personName && e.personName !== "Unknown Lead"
+              ? e.personName
+              : (lead?.fullName || e.personName || "Unknown Lead");
+          return `
+            <tr>
+              <td><strong class="person-name" title="Lead ID: ${escapeHtml(e.leadId || '')}">${escapeHtml(personName)}</strong></td>
+              <td>${renderEventBadge(e.eventType)}</td>
+              <td>${renderMetadataCell(e.metadata)}</td>
+              <td>${formatDate(e.createdAt)}</td>
+            </tr>
+          `;
+        })
+        .join("")
+    : `<tr><td colspan="4" class="empty">No funnel events in this timeframe.</td></tr>`;
+
   marketingAnalyticsWrap.innerHTML = `
     <div class="analytics-section">
       <div class="section-title-wrap">
@@ -428,6 +593,28 @@ function renderMarketingAnalyticsView(analytics) {
             </thead>
             <tbody>
               ${leadsRowsHtml}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="attribution-card">
+        <div class="section-title-wrap">
+          <h4>Recent Funnel Events</h4>
+          <span class="pill">${events.length} recent</span>
+        </div>
+        <div class="subtable-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Person</th>
+                <th>Event Type</th>
+                <th>Source / Details</th>
+                <th>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${eventsRowsHtml}
             </tbody>
           </table>
         </div>
@@ -613,17 +800,21 @@ async function loadDashboard() {
       fetchJson("/api/upgrade-transactions?limit=100")
     ]);
 
+    const filteredEvents = (events.data || []).filter(
+      (e) => e.eventType !== "DOWNLOAD_CLICKED"
+    );
+
     state = {
       overviewTotals: overview.totals || {},
       marketingAnalytics: analytics,
       funnelLead: { data: leads.data || [], count: leads.count || 0 },
-      funnelEvent: { data: events.data || [], count: events.count || 0 },
+      funnelEvent: { data: filteredEvents, count: filteredEvents.length },
       upgradeTransaction: { data: transactions.data || [], count: transactions.count || 0 }
     };
 
     leadCountEl.textContent = String(leads.count || 0);
     if (eventCountEl) {
-      eventCountEl.textContent = String(events.count || 0);
+      eventCountEl.textContent = String(filteredEvents.length);
     }
     transactionCountEl.textContent = String(transactions.count || 0);
     if (analyticsCountEl) {
