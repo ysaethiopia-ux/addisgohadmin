@@ -387,6 +387,9 @@ function renderChannelBadge(channel) {
   if (raw.includes("facebook") || raw.includes("fb")) {
     return `<span class="channel-badge channel-facebook">Facebook</span>`;
   }
+  if (raw.includes("telegram") || raw.includes("tg")) {
+    return `<span class="channel-badge channel-telegram">Telegram</span>`;
+  }
   return `<span class="channel-badge channel-direct">Direct / Other</span>`;
 }
 
@@ -454,7 +457,13 @@ function renderMarketingAnalyticsView(analytics) {
   }
 
   const { channels, trafficSessionAvailable, recentActivity } = analytics;
-  const list = [channels.instagram, channels.facebook, channels.direct_other, channels.total];
+  const list = [
+    channels.instagram,
+    channels.facebook,
+    channels.telegram,
+    channels.direct_other,
+    channels.total
+  ].filter(Boolean);
 
   const tableRowsHtml = list
     .map((row) => {

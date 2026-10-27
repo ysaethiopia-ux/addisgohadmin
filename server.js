@@ -538,6 +538,7 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
         CASE 
           WHEN LOWER(COALESCE(source, '')) LIKE '%instagram%' OR LOWER(COALESCE(source, '')) LIKE '%ig%' THEN 'instagram'
           WHEN LOWER(COALESCE(source, '')) LIKE '%facebook%' OR LOWER(COALESCE(source, '')) LIKE '%fb%' THEN 'facebook'
+          WHEN LOWER(COALESCE(source, '')) LIKE '%telegram%' OR LOWER(COALESCE(source, '')) LIKE '%tg%' THEN 'telegram'
           ELSE 'direct_other'
         END AS channel,
         COUNT(*)::int AS count
@@ -553,6 +554,7 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
         CASE 
           WHEN LOWER(COALESCE(source, '')) LIKE '%instagram%' OR LOWER(COALESCE(source, '')) LIKE '%ig%' THEN 'instagram'
           WHEN LOWER(COALESCE(source, '')) LIKE '%facebook%' OR LOWER(COALESCE(source, '')) LIKE '%fb%' THEN 'facebook'
+          WHEN LOWER(COALESCE(source, '')) LIKE '%telegram%' OR LOWER(COALESCE(source, '')) LIKE '%tg%' THEN 'telegram'
           ELSE 'direct_other'
         END AS channel,
         COUNT(*)::int AS count
@@ -578,6 +580,7 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
         CASE 
           WHEN LOWER(COALESCE(source, '')) LIKE '%instagram%' OR LOWER(COALESCE(source, '')) LIKE '%ig%' THEN 'instagram'
           WHEN LOWER(COALESCE(source, '')) LIKE '%facebook%' OR LOWER(COALESCE(source, '')) LIKE '%fb%' THEN 'facebook'
+          WHEN LOWER(COALESCE(source, '')) LIKE '%telegram%' OR LOWER(COALESCE(source, '')) LIKE '%tg%' THEN 'telegram'
           ELSE 'direct_other'
         END AS channel,
         COUNT(*)::int AS submissions,
@@ -657,6 +660,16 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
         upgradeSubmissions: 0,
         confirmedUpgrades: 0
       },
+      telegram: {
+        channel: "telegram",
+        label: "Telegram",
+        clicks: 0,
+        uniqueVisitors: hasTrafficSession ? 0 : null,
+        totalVisits: hasTrafficSession ? 0 : null,
+        newRegisteredLeads: 0,
+        upgradeSubmissions: 0,
+        confirmedUpgrades: 0
+      },
       direct_other: {
         channel: "direct_other",
         label: "Direct / Other",
@@ -692,20 +705,27 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
     const total = {
       channel: "total",
       label: "Total",
-      clicks: channels.instagram.clicks + channels.facebook.clicks + channels.direct_other.clicks,
+      clicks:
+        channels.instagram.clicks +
+        channels.facebook.clicks +
+        channels.telegram.clicks +
+        channels.direct_other.clicks,
       uniqueVisitors: hasTrafficSession ? 0 : null,
       totalVisits: hasTrafficSession ? 0 : null,
       newRegisteredLeads:
         channels.instagram.newRegisteredLeads +
         channels.facebook.newRegisteredLeads +
+        channels.telegram.newRegisteredLeads +
         channels.direct_other.newRegisteredLeads,
       upgradeSubmissions:
         channels.instagram.upgradeSubmissions +
         channels.facebook.upgradeSubmissions +
+        channels.telegram.upgradeSubmissions +
         channels.direct_other.upgradeSubmissions,
       confirmedUpgrades:
         channels.instagram.confirmedUpgrades +
         channels.facebook.confirmedUpgrades +
+        channels.telegram.confirmedUpgrades +
         channels.direct_other.confirmedUpgrades
     };
 
@@ -724,6 +744,7 @@ app.get("/api/analytics/marketing", requireAdminAuth, async (req, res) => {
     const formattedChannels = {
       instagram: attachRates(channels.instagram),
       facebook: attachRates(channels.facebook),
+      telegram: attachRates(channels.telegram),
       direct_other: attachRates(channels.direct_other),
       total: attachRates(total)
     };
